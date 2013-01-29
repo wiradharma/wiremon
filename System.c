@@ -1,0 +1,89 @@
+#include "includes.h"
+
+
+void CpuSystemInit(void)
+{
+   volatile DWORD wait=0;
+	//power up system osc
+	LPC_SYSCON->PDRUNCFG		&=	~(PDRUNCFG_SYSOSC)	;
+	//SetUp, input Osc by crystal, bypass disable (1-20MHz)
+	#if CPU_XTAL<15000000
+	LPC_SYSCON->SYSOSCCTRL	=	SYSOSCCTRL_BYPASS_DIS|SYSOSCCTRL_1TO20MHZ;
+	#else
+	LPC_SYSCON->SYSOSCCTRL	=	SYSOSCCTRL_BYPASS_DIS|SYSOSCCTRL_15TO25MHZ;
+	#endif
+#if 1
+  for (wait=0; wait<2000; wait++)
+  {
+    __NOP();
+  }
+  #else 
+ 
+  while(wait<200)wait++;
+  #endif
+  #ifdef USE_INTERNAL_XTAL
+	LPC_SYSCON->SYSPLLCLKSEL=	CLKSEL_SOURCE_INTERNALOSC;
+  #else
+  	LPC_SYSCON->SYSPLLCLKSEL=	CLKSEL_SOURCE_MAINOSC;	//use external crystal
+  #endif
+	//toggle to update clocksource
+  	LPC_SYSCON->SYSPLLCLKUEN= PLLCLKUEN_UPD;
+	LPC_SYSCON->SYSPLLCLKUEN= PLLCLKUEN_DIS;	
+	LPC_SYSCON->SYSPLLCLKUEN= PLLCLKUEN_UPD;
+	
+  	//wait until clock is updated
+  	while (!(LPC_SYSCON->SYSPLLCLKUEN & PLLCLKUEN_UPD));
+	
+//set multiplier
+#if	SYSTEM_MULTIPLIER==1
+LPC_SYSCON->SYSPLLCTRL=PLLCTRL_MSEL_1 |PLLCTRL_PSEL_16;
+#elif SYSTEM_MULTIPLIER==2
+LPC_SYSCON->SYSPLLCTRL=PLLCTRL_MSEL_2 |PLLCTRL_PSEL_4;
+#elif SYSTEM_MULTIPLIER==3
+LPC_SYSCON->SYSPLLCTRL=PLLCTRL_MSEL_3 |PLLCTRL_PSEL_4;
+#elif SYSTEM_MULTIPLIER==4
+LPC_SYSCON->SYSPLLCTRL=PLLCTRL_MSEL_4 |PLLCTRL_PSEL_2;
+#elif SYSTEM_MULTIPLIER==5
+LPC_SYSCON->SYSPLLCTRL=PLLCTRL_MSEL_5 |PLLCTRL_PSEL_4;
+#elif SYSTEM_MULTIPLIER==6
+LPC_SYSCON->SYSPLLCTRL=PLLCTRL_MSEL_6 |PLLCTRL_PSEL_4;
+#endif
+
+
+#ifdef USE_PLL
+	//enable PLL
+	LPC_SYSCON->PDRUNCFG		&=	~(PDRUNCFG_SYSPLL)	;
+
+  // Wait for PLL to lock
+  while (!(LPC_SYSCON->SYSPLLSTAT & PLLSTAT_LOCK));
+  
+  // Setup main clock
+  LPC_SYSCON->MAINCLKSEL = MAINCLKSEL_SYSPLLCLKOUT ;
+  //toggle to update main clocksource
+  LPC_SYSCON->MAINCLKUEN = MAINCLKUEN_UPD;       // Update clock source
+  LPC_SYSCON->MAINCLKUEN = MAINCLKUEN_DIS;      // Toggle update register once
+  LPC_SYSCON->MAINCLKUEN = MAINCLKUEN_UPD;
+
+  // Wait until the clock is updated
+  while (!(LPC_SYSCON->MAINCLKUEN & MAINCLKUEN_UPD));
+
+#endif
+  // Set system AHB clock
+  LPC_SYSCON->SYSAHBCLKDIV = SYSAHBCLKDIV_DIV1;
+
+  // Enabled IOCON clock for I/O related peripherals
+  LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_IOCON;
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
